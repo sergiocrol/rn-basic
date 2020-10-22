@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Alert, ScrollView, FlatList } from 'react-native';
+import { View, StyleSheet, Alert, FlatList, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ScreenOrientation } from 'expo';
 
 import NumberContainer from '../components/NumberContainer';
 import Card from '../components/Card';
@@ -28,9 +29,19 @@ const renderListItem = (listLength, itemData) => (
 );
 
 const GameScreen = ({ userChoice, onGameOver }) => {
+  // This is an API from EXPO, it can be usefull to determine the orientation (with Dimensions we can guess it with the width,
+  // but we're not sure). Also allows us to lock the orientation during the runtime, which can also be useful.
+  // ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+
   const initialGuess = generateRandomBetween(1, 100, userChoice);
   const [currentGuess, setCurrentGuess] = useState(initialGuess);
   const [pastGuesses, setPassGuesses] = useState([initialGuess.toString()]);
+  const [availableDeviceWidth, setAvailableDeviceWidth] = useState(
+    Dimensions.get('window').width
+  );
+  const [availableDeviceHeight, setAvailableDeviceHeight] = useState(
+    Dimensions.get('window').height
+  );
 
   // One difference between useRef and useState is that useRef can also
   // remember the data after re-rendering, but it doesn't not cause a re-render
@@ -39,6 +50,18 @@ const GameScreen = ({ userChoice, onGameOver }) => {
   // impact in the UI
   const currentLow = useRef(1);
   const currentHigh = useRef(100);
+
+  useEffect(() => {
+    const updateLayout = () => {
+      setAvailableDeviceHeight(Dimensions.get('window').height);
+      setAvailableDeviceWidth(Dimensions.get('window').width);
+    };
+
+    Dimensions.addEventListener('change', updateLayout);
+    return () => {
+      Dimensions.removeEventListener('change', updateLayout);
+    };
+  });
 
   useEffect(() => {
     if (userChoice === currentGuess) {
@@ -74,6 +97,50 @@ const GameScreen = ({ userChoice, onGameOver }) => {
     ]);
   };
 
+  let listContainerStyle = styles.listContainer;
+
+  if (availableDeviceWidth < 350) {
+    listContainerStyle = styles.listContainerBig;
+  }
+
+  if (availableDeviceHeight < 500) {
+    return (
+      <View style={styles.screen}>
+        <TitleText style={DefaultStyles.bodyText}>Oponent's Guess</TitleText>
+        <View style={styles.controls}>
+          <MainButton
+            style={{ paddingHorizontal: 18 }}
+            onPress={nextGuessHandler.bind(this, 'lower')}
+          >
+            <Ionicons name="md-remove" size={24} color="white" />
+          </MainButton>
+          <NumberContainer>{currentGuess}</NumberContainer>
+          <MainButton
+            style={{ paddingHorizontal: 18 }}
+            onPress={nextGuessHandler.bind(this, 'greater')}
+          >
+            <Ionicons name="md-add" size={24} color="white" />
+          </MainButton>
+        </View>
+        <View style={listContainerStyle}>
+          {/* contentContainerStyle allows us to align the content around the list of the ScrollView.
+          Otherwise, with common style we'd only be able to add margins, paddings, etc */}
+          {/* <ScrollView contentContainerStyle={styles.list}>
+            {pastGuesses.map((guess, index) =>
+              renderListItem(guess, pastGuesses.length - index)
+            )}
+          </ScrollView> */}
+          <FlatList
+            keyExtractor={(item) => item}
+            data={pastGuesses}
+            renderItem={renderListItem.bind(this, pastGuesses.length)}
+            contentContainerStyle={styles.list}
+          />
+        </View>
+      </View>
+    );
+  }
+
   // Here, in the <TitleText></TitleText> we've two ways to give to the element general
   // styles. We can create a separate component (TitleText); or define a general
   // DefaultStyle object. The benefits about components is that it is a 'more react'
@@ -97,7 +164,7 @@ const GameScreen = ({ userChoice, onGameOver }) => {
           <Ionicons name="md-add" size={24} color="white" />
         </MainButton>
       </Card>
-      <View style={styles.listContainer}>
+      <View style={listContainerStyle}>
         {/* contentContainerStyle allows us to align the content around the list of the ScrollView.
         Otherwise, with common style we'd only be able to add margins, paddings, etc */}
         {/* <ScrollView contentContainerStyle={styles.list}>
@@ -125,13 +192,23 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 20,
+    marginTop: Dimensions.get('window').height > 600 ? 20 : 5,
     width: 300,
     maxWidth: '80%',
   },
   listContainer: {
     flex: 1, // this is necessary in order the list to be scrollable in Android
     width: '60%',
+  },
+  controls: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    width: '80%',
+  },
+  listContainerBig: {
+    flex: 1,
+    width: '80%',
   },
   list: {
     flexGrow: 1,
